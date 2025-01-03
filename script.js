@@ -38,7 +38,7 @@ const calculator = {
       case '/':
         this.result = this.arg1 / this.arg2;
         // Handle division errors (e.g., division by zero)
-        if(isNaN(this.result)) {
+        if(isNaN(this.result) || !isFinite(this.result)) {
           this.result = 'Syntax Error!!';
           this.errorState = true;
         };
@@ -46,8 +46,10 @@ const calculator = {
     }
 
     // Adjust the display if the result is too large or format it
-    if(this.result > 99999999) this.result = this.result.toExponential(2); // Converts to scientific notation
-    else this.formatResult();
+    if(Number.isInteger(this.result)) {
+      if(this.result > 99999999) this.result = this.result.toExponential(2); // Converts to scientific notation
+      else this.formatResult();
+    }
 
     // Prepare for a new calculation by shifting result to `arg1`
     this.arg1 = this.result;
