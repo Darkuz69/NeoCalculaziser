@@ -15,12 +15,57 @@ const calculator = {
   resultState: false, // Tracks if the result is displayed
   errorState: false, // Tracks if an error occurred (e.g., division by zero)
 
-  // Formats the result to ensure it fits the screen and removes unnecessary trailing zeros
-  formatResult: function () {
-    if (this.result.toString().length > 8) {
-      this.result = this.result.toPrecision(7); // Limits the result to 7 significant digits
+  formatResult: function() {
+    let result = this.result;
+    const absValue = Math.abs(result);
+    
+    // Very small numbers handling (<1e-5)
+    if (absValue > 0 && absValue < 0.00001) {
+      result = result.toExponential(2);
     }
-    this.result = this.result.toString().replace(/\.?0+$/, ''); // Removes trailing zeros after a decimal
+    // Small decimals (>=0.00001 and <0.1)
+    else if (absValue >= 0.00001 && absValue < 0.1) {
+      // For numbers that would be too long in decimal format
+      if (result.toString().length > 8) {
+        let precision = 7;
+        // Adjust precision based on number size to avoid scientific notation
+        while (precision > 1) {
+          let formatted = result.toPrecision(precision);
+          if (!formatted.includes('e') && formatted.length <= 8) {
+            result = formatted;
+            break;
+          }
+          precision--;
+        }
+        // If we couldn't format it properly, use scientific notation
+        if (precision <= 1) {
+          result = result.toExponential(2);
+        }
+      }
+    }
+    // Regular numbers that are too long
+    else if (result.toString().length > 8) {
+      result = result.toPrecision(7);
+    }
+    
+    // Convert to string and clean up
+    result = result.toString();
+    
+    // Clean up scientific notation if present
+    if (result.includes('e')) {
+      const [base, exponent] = result.split('e');
+      const cleanBase = parseFloat(base).toPrecision(3);
+      result = `${cleanBase}e${exponent}`;
+    } else {
+      // Remove trailing zeros after decimal
+      result = result.replace(/\.?0+$/, '');
+      // Remove trailing decimal point
+      if (result.endsWith('.')) {
+        result = result.slice(0, -1);
+      }
+    }
+    
+    this.result = result;
   },
 
   // Performs the calculation based on the selected operator
@@ -46,8 +91,10 @@ const calculator = {
     }
 
     // Adjust the display if the result is too large or format it
-    if(Number.isInteger(this.result)) {
-      if(this.result > 99999999) this.result = this.result.toExponential(2); // Converts to scientific notation
+    if(typeof this.result == 'number') {
+      if(this.result > 99999999) {
+        this.result = this.result.toExponential(2); // Converts to scientific notation
+      }
       else this.formatResult();
     }
 
@@ -74,7 +121,7 @@ const calculator = {
 
 // Checks if the input key corresponds to a valid operator or control key
 function isOperand(input) {
-  const operands = ['+', '-', '*', '/', '=', 'Delete'];
+  const operands = ['+', '-', '*', '/', '=', 'Enter', 'Delete'];
   for(let i = 0; i < operands.length; i++) {
     if(input == operands[i]) return true; // Return true for valid operators or special keys
   }
@@ -83,7 +130,7 @@ function isOperand(input) {
 
 // Validates if the input key is a number, operator, or special control key
 function validateInput(keypress) {
-  const specials = ['.', '+', '-', '*', '/', '=', 'Backspace', 'Delete'];
+  const specials = ['.', '+', '-', '*', '/', '=', 'Enter', 'Backspace', 'Delete'];
   for(let i = 0; i < specials.length; i++) {
     if(keypress == specials[i]) return true;
   }
@@ -93,6 +140,7 @@ function validateInput(keypress) {
 
 // Visually highlights the pressed key
 function toogleKeypress(keypress) {
+  if(keypress == 'Enter') keypress = '=';
   const key = document.querySelector('.key[data-key="'+ keypress +'"]');
   key.classList.add('active'); // Add an "active" class for visual feedback
 }
@@ -113,7 +161,7 @@ function handleInput(keypress) {
     if(!calculator.argState && !calculator.operandState) return; // Ignore invalid operand inputs
 
     if(!calculator.operandState) {
-      if(keypress == '=') { // Handle "=" to calculate the result
+      if(keypress == '=' || keypress == 'Enter') { // Handle "=" to calculate the result
         if(calculator.arg1 == null && calculator.arg2 == null) return;
         calculator.arg2 = output; // Assign second operand
         calculator.calculate(); // Perform the calculation
@@ -162,7 +210,7 @@ function handleInput(keypress) {
     } else { // Handle additional inputs for the current operand
       switch(keypress) {
         case '.': // Prevent multiple decimal points
-          if(output.length == 7) return; // Prevent overflow
+          if(output.length > 7) return; // Prevent overflow
           let count = output.lastIndexOf('.');
           if(count != -1) return;
           output += keypress;
